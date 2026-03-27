@@ -1,0 +1,140 @@
+name: CI/CD action_github
+
+on:
+  push:
+    branches:
+      - develop
+      - qa
+      - production
+      - capacitacion
+
+jobs:
+
+  deploy-dev:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+
+      - name: Restaurar dependencias
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Publicar
+        run: dotnet publish --no-build --configuration Release -o ./publish
+
+      - name: Generar appsettings desde variables y secrets
+        run: |
+          cat > ./publish/appsettings.json << EOF
+          {
+            "Logging": {
+              "LogLevel": {
+                "Default": "${{ vars.LOGGING_LOGLEVEL_DEFAULT }}",
+                "Microsoft.AspNetCore": "${{ vars.LOGGING_LOGLEVEL_ASPNETCORE }}"
+              }
+            },
+            "AllowedHosts": "*",
+            "ConnectionStrings": {
+              "ContextMinem": "Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${{ vars.DB_HOST }})(PORT=${{ vars.DB_PORT }}))(CONNECT_DATA=(SERVICE_NAME=${{ vars.DB_SERVICE }})));User Id=${{ vars.DB_USER }};Password=${{ secrets.DB_PASSWORD }};Connection Timeout=60;"
+            },
+            "ConfigurationSmtp": {
+              "SmtpFromAddress": "${{ vars.SMTP_FROM }}",
+              "SmtpClient": "${{ vars.SMTP_CLIENT }}",
+              "SmtpUserID": "${{ vars.SMTP_USER }}",
+              "SmtpPassword": "${{ secrets.SMTP_PASSWORD }}",
+              "SmtpPort": ${{ vars.SMTP_PORT }},
+              "SmtpEnableSSL": ${{ vars.SMTP_SSL }}
+            },
+            "MsSettings": {
+              "NotificacionesSvcSettings": {
+                "BaseUrl": "${{ vars.NOTIF_BASEURL }}",
+                "ApiKey": "${{ secrets.NOTIF_APIKEY }}",
+                "TimeoutSeconds": ${{ vars.NOTIF_TIMEOUT }},
+                "NotificacioneInterna": "/api/v2/notificaciones/notificaciones-internas",
+                "ObtenerDocumentosDespachados": "/api/v2/notificaciones/documentos-despachados",
+                "EnviarCorreo": "/api/v2/correo/enviar-correo"
+              },
+              "LaserficheSvcSettings": {
+                "BaseUrl": "${{ vars.LASERFICHE_BASEURL }}",
+                "TimeoutSeconds": ${{ vars.LASERFICHE_TIMEOUT }},
+                "DownloadDocument": "/api/laserfiche/download-document",
+                "UploadDocument": "/api/laserfiche/upload-document"
+              },
+              "PagoTupaSvcSettings": {
+                "BaseUrl": "${{ vars.PAGOTUPA_BASEURL }}",
+                "TimeoutSeconds": ${{ vars.PAGOTUPA_TIMEOUT }},
+                "PagoCajaMinemAsignarExpediente": "/api/pago/caja-minem/asignar-expediente",
+                "PagoPagaloPeAsignarExpediente": "/api/pago/pagalo-pe/asignar-expediente",
+                "ValidarPagoCajaMinem": "api/pago/caja-minem/validar",
+                "ValidarPagoPagaloPE": "api/pago/pagalo-pe/validar",
+                "RegistrarPagoCajaMinem": "api/pago/caja-minem"
+              },
+              "ExternoSvcSettings": {
+                "BaseUrl": "${{ vars.EXTERNO_BASEURL }}",
+                "ApiKey": "${{ secrets.EXTERNO_APIKEY }}",
+                "TimeoutSeconds": ${{ vars.EXTERNO_TIMEOUT }},
+                "DatosTitularEmpresa": "/api/simen/simen/empresa/datos-titular"
+              }
+            }
+          }
+          EOF
+        shell: bash
+
+      - name: Deploy DEV
+        run: echo "Desplegando en DEV..."
+        # Aquí va tu comando real de deploy (SSH, FTP, Azure, IIS, etc.)
+
+  deploy-qa:
+    if: github.ref == 'refs/heads/qa'
+    runs-on: ubuntu-latest
+    environment: qa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+      - run: dotnet restore
+      - run: dotnet build --no-restore --configuration Release
+      - run: dotnet publish --no-build --configuration Release -o ./publish
+      - name: Deploy QA
+        run: echo "Desplegando en QA con vars del environment qa..."
+
+  deploy-prod:
+    if: github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+      - run: dotnet restore
+      - run: dotnet build --no-restore --configuration Release
+      - run: dotnet publish --no-build --configuration Release -o ./publish
+      - name: Deploy PRODUCCION
+        run: echo "Desplegando en PRODUCCION - requirio aprobacion previa"
+
+  deploy-capacitacion:
+    if: github.ref == 'refs/heads/capacitacion'
+    runs-on: ubuntu-latest
+    environment: capacitacion
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+      - run: dotnet restore
+      - run: dotnet build --no-restore --configuration Release
+      - run: dotnet publish --no-build --configuration Release -o ./publish
+      - name: Deploy CAPACITACION
+        run: echo "Desplegando en CAPACITACION..."
+ 
+
